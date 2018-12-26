@@ -99,3 +99,71 @@ pub fn time_log(_args: &clap::ArgMatches<>) {
 
 pub fn test(_args: &clap::ArgMatches<>) {
 }
+
+
+#[derive(Debug, Clone)]
+pub struct Error;
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "invalid first item to double")
+    }
+}
+
+impl std::error::Error for Error {
+    fn description(&self) -> &str {
+        "invalid first item to double"
+    }
+
+    fn cause(&self) -> Option<&std::error::Error> {
+        None
+    }
+}
+
+type Result<T> = std::result::Result<T, Error>;
+
+pub struct Tissue {
+    _cfg: Config,
+}
+
+impl Tissue {
+    pub fn open(cfg: Config) -> Result<Tissue> {
+        Ok(Tissue{_cfg : cfg})
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Config {
+    smth: i32,
+}
+
+impl Config {
+    pub fn builder() -> Builder {
+        Builder::new()
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            smth: 1
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Builder {
+    t: Config,
+}
+
+impl Builder {
+    pub fn new() -> Self {
+        Self {
+            t: Config::default(),
+        }
+    }
+
+    pub fn build(self) -> Config {
+        self.t
+    }
+}

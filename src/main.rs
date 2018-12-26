@@ -66,6 +66,10 @@ fn main() {
     );
     println!("Path to config file: {}", config.display());
 
+    let _tis = tissue::Tissue::open(
+        tissue::Config::builder().build()
+    );
+
     return match args.subcommand() {
         ("new", Some(sub_args)) => {
             tissue::new_item(sub_args)
