@@ -1,0 +1,7 @@
+**/target/**
+
+doc/**.html
+**.pdf
+**/a.out
+
+**.swp
