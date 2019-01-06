@@ -2,10 +2,10 @@ extern crate clap;
 
 use std::path::Path;
 
-mod tissue;
+mod storage;
 
-fn search(args: &clap::ArgMatches<>) {
-    let notebook = tissue::Notebook::open().unwrap();
+fn query(args: &clap::ArgMatches<>) {
+    let notebook = storage::Notebook::open().unwrap();
     if args.is_present("tag") {
         println!(
             "Tags: #{}",
@@ -26,7 +26,7 @@ fn search(args: &clap::ArgMatches<>) {
 }
 
 fn note(_args: &clap::ArgMatches<>) {
-    let _notebook = tissue::Notebook::open();
+    let _notebook = storage::Notebook::open();
 }
 
 fn main() {
@@ -50,7 +50,7 @@ fn main() {
                 .help("Sets the level of verbosity")
         )
         .subcommand(
-            clap::SubCommand::with_name("search")
+            clap::SubCommand::with_name("query")
                 .about("task tracker")
                 .arg(
                     clap::Arg::with_name("tag")
@@ -141,8 +141,8 @@ fn main() {
     println!("SubCommand: {}", args.subcommand_name().unwrap());
 
     return match args.subcommand() {
-        ("search", Some(sub_args)) => {
-            search(sub_args)
+        ("query", Some(sub_args)) => {
+            query(sub_args)
         },
         ("new", Some(sub_args)) => {
             note(sub_args)
