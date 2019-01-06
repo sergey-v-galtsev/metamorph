@@ -10,11 +10,19 @@ use groestl::{
 };
 use std::fs::OpenOptions;
 use std::io::{
+    BufReader,
     BufWriter,
     Write,
 };
+use std::collections::HashMap;
+use std::fs;
 use std::path::Path;
+use std::string::String;
+use std::vec::Vec;
+use std::io::BufRead;
 
+
+#[allow(dead_code)]
 pub fn new_item(args: &clap::ArgMatches<>) {
     // TODO: take values from config
     let todo_root_path = Path::new(
@@ -94,13 +102,6 @@ pub fn new_item(args: &clap::ArgMatches<>) {
     }
 }
 
-pub fn time_log(_args: &clap::ArgMatches<>) {
-}
-
-pub fn test(_args: &clap::ArgMatches<>) {
-}
-
-
 #[derive(Debug, Clone)]
 pub struct Error;
 
@@ -122,22 +123,125 @@ impl std::error::Error for Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-pub struct Tissue {
-    _cfg: Config,
+#[derive(Debug, Default, Clone)]
+pub struct Note {
+    pub title: String,
+    pub text: String,
+    pub tags: Vec<String>,
 }
 
-impl Tissue {
-    pub fn open(cfg: Config) -> Result<Tissue> {
-        Ok(Tissue{_cfg : cfg})
+// impl Default for Note {
+//     fn default() -> Self {
+//         Self {
+//         }
+//     }
+// }
+
+#[derive(Debug, Default)]
+pub struct Notebook  {
+    tag_to_tags: HashMap<String, Vec<String>>,
+    notes: HashMap<String, Note>,
+}
+
+fn read_note_from_file(path: &Path) -> Result<Note> {
+    let file = OpenOptions::new()
+        .read(true)
+        .open(path)
+        .unwrap();
+    let mut note = Note::default();
+    let buf = BufReader::new(&file);
+    for line_s in buf.lines() {
+        let line = line_s.unwrap();
+        if line.starts_with("# ") {
+            note.title = line
+                .trim()
+                .trim_start_matches('#')
+                .to_string();
+        }
+        note.text.push_str(line.as_str());
+        note.tags.extend(
+            line.split(" #")
+                .skip(1)
+                .map(
+                    |t| t.split_whitespace().next().unwrap().to_string()
+                )
+        );
+    }
+    // println!("Note {} \"{}\" tags: #{}", path.display(), note.title, note.tags.join(" #"));
+    return Ok(note);
+}
+
+impl Notebook {
+    pub fn open() -> Result<Notebook> {
+        let dir_path = Path::new("/home/akindyakov/source/git.note/todo/files");
+        println!("Path to config file: {}", dir_path.display());
+        let mut notebook = Notebook::default();
+        let files = fs::read_dir(dir_path).unwrap();
+        for file_r in files {
+            let file = file_r.unwrap();
+            let mut note = read_note_from_file(file.path().as_path()).unwrap();
+            let uniq_tag = file.path().file_stem().unwrap().to_str().unwrap().to_string();
+            note.tags.push(uniq_tag.clone());
+            for tag in &note.tags {
+                let tag_refs = notebook.tag_to_tags.entry(tag.to_string()).or_insert(
+                    Vec::new()
+                );
+                tag_refs.push(uniq_tag.clone());
+            }
+            notebook.notes.insert(
+                uniq_tag,
+                note
+            );
+        }
+        Ok(notebook)
+    }
+
+    #[allow(dead_code)]
+    pub fn search_tags(&self, txt: &str) -> Result<Vec<&str>> {
+        let mut tags = Vec::new();
+        for tag in self.tag_to_tags.keys() {
+            if tag.find(&txt).is_some() {
+                tags.push(tag.as_str());
+            }
+        }
+        Ok(tags)
+    }
+
+    pub fn expand_tag(&self, tag: &str) -> Vec<String> {
+        self.tag_to_tags.get(tag).map_or(
+            [tag.to_string()].to_vec(),
+            |g| g.clone()
+        )
+    }
+
+    pub fn query(&self, tags: &Vec<&str>) -> Result<HashMap<String, Note>> {
+        let mut ret = HashMap::new();
+        for tag in tags {
+            let group = self.expand_tag(tag);
+            for tag in group {
+                ret.insert(
+                    tag.to_string(),
+                    self.notes.get(tag.as_str()).unwrap().clone(),
+                );
+            }
+        }
+        Ok(ret)
+    }
+
+    #[allow(dead_code)]
+    pub fn add(_note: &Note) -> Result<()> {
+        Err(Error{})
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Config {
-    smth: i32,
+    //path: Path,
 }
 
+#[allow(dead_code)]
 impl Config {
+    #[allow(dead_code)]
     pub fn builder() -> Builder {
         Builder::new()
     }
@@ -146,7 +250,6 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            smth: 1
         }
     }
 }
@@ -163,6 +266,7 @@ impl Builder {
         }
     }
 
+    #[allow(dead_code)]
     pub fn build(self) -> Config {
         self.t
     }
