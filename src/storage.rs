@@ -164,6 +164,21 @@ impl Note {
         // TODO
         Ok(())
     }
+
+    pub fn gen_uid(&self) -> Result<String> {
+        let mut uid = self.title.to_lowercase();
+        uid.retain(|ch| ch.is_alphanumeric());
+        uid.truncate(8);
+        uid.push('_');
+        let mut hasher = Groestl256::default();
+        hasher.input(self.text);
+        for tag in self.tags.iter() {
+            hasher.input(tag);
+        }
+        uid.push_str(
+            hex::encode(hasher.result())
+        );
+    }
 }
 
 // impl Default for Note {
