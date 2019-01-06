@@ -26,7 +26,8 @@ fn query(args: &clap::ArgMatches<>) {
 }
 
 fn note(_args: &clap::ArgMatches<>) {
-    let _notebook = storage::Notebook::open();
+    let notebook = storage::Notebook::open().unwrap();
+    notebook.iadd().unwrap();
 }
 
 fn main() {

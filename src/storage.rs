@@ -3,6 +3,7 @@ extern crate clap;
 extern crate groestl;
 extern crate hex;
 extern crate kv;
+extern crate tempfile;
 
 use groestl::{
     Digest,
@@ -102,8 +103,10 @@ pub fn new_item(args: &clap::ArgMatches<>) {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Error;
+#[derive(Debug, Clone, Default)]
+pub struct Error {
+    message: String,
+}
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -130,6 +133,39 @@ pub struct Note {
     pub tags: Vec<String>,
 }
 
+impl Note {
+    // TODO: use trait for argument
+    pub fn from_file(file: &std::fs::File) -> Result<Note> {
+        let buf = BufReader::new(file);
+        let mut note = Note::default();
+        for line_s in buf.lines() {
+            let line = line_s.unwrap();
+            if line.starts_with("# ") {
+                note.title = line
+                    .trim()
+                    .trim_start_matches('#')
+                    .to_string();
+            }
+            note.text.push_str(line.as_str());
+            note.tags.extend(
+                line.split(" #")
+                    .skip(1)
+                    .map(
+                        |t| t.split_whitespace().next().unwrap().to_string()
+                    )
+            );
+        }
+        return Ok(note);
+    }
+
+    // TODO: use trait Write for argument
+    pub fn to_file(&self, file: &std::fs::File) -> Result<()> {
+        let mut buf = BufWriter::new(file);
+        // TODO
+        Ok(())
+    }
+}
+
 // impl Default for Note {
 //     fn default() -> Self {
 //         Self {
@@ -148,27 +184,7 @@ fn read_note_from_file(path: &Path) -> Result<Note> {
         .read(true)
         .open(path)
         .unwrap();
-    let mut note = Note::default();
-    let buf = BufReader::new(&file);
-    for line_s in buf.lines() {
-        let line = line_s.unwrap();
-        if line.starts_with("# ") {
-            note.title = line
-                .trim()
-                .trim_start_matches('#')
-                .to_string();
-        }
-        note.text.push_str(line.as_str());
-        note.tags.extend(
-            line.split(" #")
-                .skip(1)
-                .map(
-                    |t| t.split_whitespace().next().unwrap().to_string()
-                )
-        );
-    }
-    // println!("Note {} \"{}\" tags: #{}", path.display(), note.title, note.tags.join(" #"));
-    return Ok(note);
+    return Note::from_file(&file);
 }
 
 impl Notebook {
@@ -229,8 +245,33 @@ impl Notebook {
     }
 
     #[allow(dead_code)]
-    pub fn add(_note: &Note) -> Result<()> {
-        Err(Error{})
+    pub fn add(&self, _note: &Note) -> Result<()> {
+        Err(Error::default())
+    }
+
+    pub fn iadd(&self) -> Result<()> { // -> Result<&str> {
+        let editor = std::env::var("EDITOR")
+            .unwrap_or(
+                "/usr/bin/vi".to_string()
+            );
+        println!("Editor: {}", editor);
+        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        println!("Tmp file: {}", tmp.path().display());
+        // let mut editor_child = std::process::Command::new(editor)
+        //     .arg(tmp.path().as_os_str())
+        //     .spawn()
+        //     .expect("d");
+        // let editor_output = editor_child.wait().unwrap();
+        let child_status = std::process::Command::new(editor)
+            .arg(tmp.path().as_os_str())
+            .spawn()
+            .unwrap().wait().unwrap();
+        if ! child_status.success() {
+            return Err(Error{message: "Editor process finished with error".to_string()});
+        }
+        let note = Note::from_file(tmp.as_file());
+        // TODO: interactively read tags and title if required
+        Ok(())
     }
 }
 
