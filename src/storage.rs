@@ -23,6 +23,7 @@ use std::path::Path;
 use std::string::String;
 use std::vec::Vec;
 use std::io::BufRead;
+use std::io::Seek;
 
 
 #[allow(dead_code)]
@@ -136,7 +137,7 @@ pub struct Note {
     pub tags: HashSet<String>,
 }
 
-const TAG_REGEXP: &str = r" #([[:alnum:]/-_]+)";
+const TAG_REGEXP: &str = r"[^#]#([[:alnum:]/-_]+)";
 
 impl Note {
     // TODO: use trait for argument
@@ -150,9 +151,9 @@ impl Note {
                     .trim_start_matches('#')
                     .trim();
                 let re = regex::Regex::new(TAG_REGEXP).unwrap();
-                let id_cap = re.find(line);
+                let id_cap = re.captures(line);
                 if id_cap.is_some() {
-                    note.id = id_cap.unwrap().as_str().to_string();
+                    note.id = id_cap.unwrap()[1].to_string();
                 }
                 note.title = line.to_string();
             } else if line.starts_with("[comment]:") {
@@ -160,7 +161,7 @@ impl Note {
             } else {
                 let re = regex::Regex::new(TAG_REGEXP).unwrap();
                 note.tags.extend(
-                    re.captures_iter(line.as_str()).map(|m| m[0].to_string())
+                    re.captures_iter(line.as_str()).map(|m| m[1].to_string())
                 );
                 note.text.push_str(line.as_str());
             }
@@ -292,6 +293,22 @@ impl Notebook {
         Ok(())
     }
 
+    fn make_note_template(&self, file: &std::fs::File) -> Result<()> {
+        let mut buf = BufWriter::new(file);
+        write!(&mut buf, "# \n\n\n").unwrap();
+        writeln!(&mut buf, "[comment]: # (Use `#` at very beging of 1 line to claim this line title)").unwrap();
+        writeln!(&mut buf, "[comment]: # (Use `#` to claim next word as a tag, e.g. \"This is hi pri #task\")").unwrap();
+        writeln!(&mut buf, "[comment]: # (List of existing tags:)").unwrap();
+        for (tag, _) in self.tag_to_tags.iter() {
+            writeln!(&mut buf, "[comment]: # (#{})", tag).unwrap();
+        }
+        writeln!(&mut buf, "[comment]: # (List of existing notes:)").unwrap();
+        for (_, note) in self.notes.iter() {
+            writeln!(&mut buf, "[comment]: # (#{} - {})", note.id, note.title).unwrap();
+        }
+        Ok(())
+    }
+
     pub fn iadd(&mut self) -> Result<()> {
         let editor = std::env::var("EDITOR")
             .unwrap_or(
@@ -304,6 +321,9 @@ impl Notebook {
                 .tempfile()
                 .unwrap();
         println!("Tmp file: {}", tmp.path().display());
+        self.make_note_template(tmp.as_file()).unwrap();
+        tmp.as_file().sync_all().unwrap();
+        tmp.as_file().seek(std::io::SeekFrom::Start(0)).unwrap();
         let child_status = std::process::Command::new(editor)
             .arg(tmp.path().as_os_str())
             .spawn()
