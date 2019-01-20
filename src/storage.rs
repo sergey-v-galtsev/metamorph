@@ -289,7 +289,11 @@ impl Notebook {
                 "/usr/bin/vi".to_string()
             );
         println!("Editor: {}", editor);
-        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let tmp = tempfile::Builder::new()
+                .suffix(".md")
+                .rand_bytes(8)
+                .tempfile()
+                .unwrap();
         println!("Tmp file: {}", tmp.path().display());
         let child_status = std::process::Command::new(editor)
             .arg(tmp.path().as_os_str())
