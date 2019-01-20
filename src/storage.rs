@@ -155,6 +155,8 @@ impl Note {
                     note.id = id_cap.unwrap().as_str().to_string();
                 }
                 note.title = line.to_string();
+            } else if line.starts_with("[comment]:") {
+                continue;
             } else {
                 let re = regex::Regex::new(tag_regexp).unwrap();
                 note.tags.extend(
