@@ -16,7 +16,7 @@ fn spawn_notebook(args: &clap::ArgMatches) -> Option<storage::Notebook> {
     None
 }
 
-fn query(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
+fn list(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     if args.is_present("tag") {
         println!(
             "Tags: #{}",
@@ -30,7 +30,7 @@ fn query(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
             .unwrap();
         for (t, n) in notes {
             println!(
-                "Note: {} : {} \n    #: {}",
+                "#{}: {}\n    {}\n",
                 t,
                 n.title,
                 n.tags
@@ -39,10 +39,28 @@ fn query(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
                         acc.push_str(item);
                         acc.push_str(", #");
                         acc
-                    })
+                    }),
             );
         }
     }
+}
+
+fn show(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
+    let tag = args.value_of("tag").unwrap();
+    let notes = notebook.query(&vec![tag]).unwrap();
+    let (_, note) = notes.iter().next().unwrap();
+    println!("#{} {}\n", note.id, note.title);
+    println!(
+        "{}",
+        note.tags
+            .iter()
+            .fold(" #".to_string(), |mut acc: String, item| {
+                acc.push_str(item);
+                acc.push_str(" #");
+                acc
+            })
+    );
+    println!("{}\n", note.text);
 }
 
 fn note(notebook: &mut storage::Notebook, _args: &clap::ArgMatches) {
@@ -68,8 +86,8 @@ fn main() {
                 .help("Sets the level of verbosity"),
         )
         .subcommand(
-            clap::SubCommand::with_name("query")
-                .about("task tracker")
+            clap::SubCommand::with_name("list")
+                .about("list")
                 .arg(
                     clap::Arg::with_name("tag")
                         .long("tag")
@@ -100,24 +118,15 @@ fn main() {
                         .help("modify existing"),
                 ),
         )
+        .subcommand(clap::SubCommand::with_name("new"))
         .subcommand(
-            clap::SubCommand::with_name("new")
-                .arg(
-                    clap::Arg::with_name("name")
-                        .long("name")
-                        .multiple(true)
-                        .short("n")
-                        .takes_value(true)
-                        .help("tag"),
-                )
-                .arg(
-                    clap::Arg::with_name("tag")
-                        .long("tag")
-                        .multiple(true)
-                        .short("t")
-                        .takes_value(true)
-                        .help("tag"),
-                ),
+            clap::SubCommand::with_name("show").arg(
+                clap::Arg::with_name("tag")
+                    .long("tag")
+                    .short("t")
+                    .takes_value(true)
+                    .help("tag"),
+            ),
         )
         .subcommand(
             clap::SubCommand::with_name("name")
@@ -158,8 +167,9 @@ fn main() {
 
     let mut notebook = spawn_notebook(&args).unwrap();
     return match args.subcommand() {
-        ("query", Some(sub_args)) => query(&mut notebook, sub_args),
+        ("list", Some(sub_args)) => list(&mut notebook, sub_args),
         ("new", Some(sub_args)) => note(&mut notebook, sub_args),
+        ("show", Some(sub_args)) => show(&mut notebook, sub_args),
         (_, None) => {}
         (_, Some(_)) => {}
     };

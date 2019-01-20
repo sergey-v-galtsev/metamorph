@@ -80,6 +80,7 @@ impl Note {
                 note.tags
                     .extend(re.captures_iter(line.as_str()).map(|m| m[1].to_string()));
                 note.text.push_str(line.as_str());
+                note.text.push('\n');
             }
         }
         return Ok(note);
