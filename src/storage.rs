@@ -136,7 +136,7 @@ pub struct Note {
     pub tags: HashSet<String>,
 }
 
-const tag_regexp: &str = r" #([[:alnum:]/-_]+)";
+const TAG_REGEXP: &str = r" #([[:alnum:]/-_]+)";
 
 impl Note {
     // TODO: use trait for argument
@@ -149,7 +149,7 @@ impl Note {
                 let line = line
                     .trim_start_matches('#')
                     .trim();
-                let re = regex::Regex::new(tag_regexp).unwrap();
+                let re = regex::Regex::new(TAG_REGEXP).unwrap();
                 let id_cap = re.find(line);
                 if id_cap.is_some() {
                     note.id = id_cap.unwrap().as_str().to_string();
@@ -158,7 +158,7 @@ impl Note {
             } else if line.starts_with("[comment]:") {
                 continue;
             } else {
-                let re = regex::Regex::new(tag_regexp).unwrap();
+                let re = regex::Regex::new(TAG_REGEXP).unwrap();
                 note.tags.extend(
                     re.captures_iter(line.as_str()).map(|m| m[0].to_string())
                 );
@@ -185,13 +185,6 @@ impl Note {
         Ok(())
     }
 }
-
-// impl Default for Note {
-//     fn default() -> Self {
-//         Self {
-//         }
-//     }
-// }
 
 #[derive(Debug, Default)]
 pub struct Notebook  {
@@ -283,7 +276,7 @@ impl Notebook {
         Ok(())
     }
 
-    pub fn iadd(&mut self) -> Result<()> { // -> Result<&str> {
+    pub fn iadd(&mut self) -> Result<()> {
         let editor = std::env::var("EDITOR")
             .unwrap_or(
                 "/usr/bin/vi".to_string()
