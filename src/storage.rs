@@ -7,25 +7,18 @@ extern crate kv;
 extern crate regex;
 extern crate tempfile;
 
-use groestl::{
-    Digest,
-    Groestl256,
-};
-use std::fs::OpenOptions;
-use std::io::{
-    BufReader,
-    BufWriter,
-    Write,
-};
+use groestl::{Digest, Groestl256};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
+use std::fs::OpenOptions;
+use std::io::BufRead;
+use std::io::Seek;
+use std::io::{BufReader, BufWriter, Write};
 use std::path::Path;
 use std::path::PathBuf;
 use std::string::String;
 use std::vec::Vec;
-use std::io::BufRead;
-use std::io::Seek;
 
 #[derive(Debug, Clone, Default)]
 pub struct Error {
@@ -74,10 +67,9 @@ impl Note {
                 if id_cap_opt.is_some() {
                     let id_cap = id_cap_opt.unwrap();
                     note.id = line[id_cap.start() + 2..id_cap.end()].to_string();
-                    note.title = [
-                        line[..id_cap.start()].trim(),
-                        line[id_cap.end()..].trim(),
-                    ].join(" ").to_string();
+                    note.title = [line[..id_cap.start()].trim(), line[id_cap.end()..].trim()]
+                        .join(" ")
+                        .to_string();
                 } else {
                     note.title = line.to_string();
                 }
@@ -85,9 +77,8 @@ impl Note {
                 continue;
             } else {
                 let re = regex::Regex::new(TAG_REGEXP).unwrap();
-                note.tags.extend(
-                    re.captures_iter(line.as_str()).map(|m| m[1].to_string())
-                );
+                note.tags
+                    .extend(re.captures_iter(line.as_str()).map(|m| m[1].to_string()));
                 note.text.push_str(line.as_str());
             }
         }
@@ -99,15 +90,18 @@ impl Note {
         let mut buf = BufWriter::new(file);
         write!(&mut buf, "# #{} {}\n\n", self.id, self.title).unwrap();
         if !self.tags.is_empty() {
-            write!(&mut buf, " {}\n\n", self.tags.iter().fold(
-                    "#".to_string(),
-                    |mut acc: String, item| {
+            write!(
+                &mut buf,
+                " {}\n\n",
+                self.tags
+                    .iter()
+                    .fold("#".to_string(), |mut acc: String, item| {
                         acc.push_str(", #");
                         acc.push_str(item);
                         acc
-                    }
-                )
-            ).unwrap();
+                    })
+            )
+            .unwrap();
         }
         writeln!(&mut buf, "{}", self.text).unwrap();
         Ok(())
@@ -125,23 +119,20 @@ impl Note {
 }
 
 #[derive(Debug)]
-pub struct Notebook  {
+pub struct Notebook {
     tag_to_tags: HashMap<String, HashSet<String>>,
     notes: HashMap<String, Note>,
     dir_path: PathBuf,
 }
 
 fn read_note_from_file(path: &Path) -> Result<Note> {
-    let file = OpenOptions::new()
-        .read(true)
-        .open(path)
-        .unwrap();
+    let file = OpenOptions::new().read(true).open(path).unwrap();
     return Note::from_file(&file);
 }
 
 impl Notebook {
     pub fn on_dir(dir_path: &Path) -> Result<Notebook> {
-        let mut notebook = Notebook{
+        let mut notebook = Notebook {
             tag_to_tags: HashMap::new(),
             notes: HashMap::new(),
             dir_path: dir_path.clone().to_path_buf(),
@@ -154,7 +145,13 @@ impl Notebook {
             }
             let mut note = read_note_from_file(file.path().as_path()).unwrap();
             if note.id.is_empty() {
-                note.id = file.path().file_stem().unwrap().to_str().unwrap().to_string();
+                note.id = file
+                    .path()
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string();
             }
             notebook.add(note).unwrap();
         }
@@ -174,10 +171,8 @@ impl Notebook {
 
     pub fn expand_tag(&self, tag: &str) -> HashSet<String> {
         self.tag_to_tags.get(tag).map_or(
-            HashSet::from(
-                [tag.to_string()].iter().cloned().collect()
-            ),
-            |g| g.clone()
+            HashSet::from([tag.to_string()].iter().cloned().collect()),
+            |g| g.clone(),
         )
     }
 
@@ -208,24 +203,27 @@ impl Notebook {
             } else {
                 self.tag_to_tags.insert(
                     tag.to_string(),
-                    HashSet::from(
-                        [note.id.clone()].iter().cloned().collect(),
-                    ),
+                    HashSet::from([note.id.clone()].iter().cloned().collect()),
                 );
             }
         }
-        self.notes.insert(
-            note.id.clone(),
-            note
-        );
+        self.notes.insert(note.id.clone(), note);
         Ok(())
     }
 
     fn make_note_template(&self, file: &std::fs::File) -> Result<()> {
         let mut buf = BufWriter::new(file);
         write!(&mut buf, "# \n\n\n").unwrap();
-        writeln!(&mut buf, "[comment]: # (Use `#` at very beging of 1 line to claim this line title)").unwrap();
-        writeln!(&mut buf, "[comment]: # (Use `#` to claim next word as a tag, e.g. \"This is hi pri #task\")").unwrap();
+        writeln!(
+            &mut buf,
+            "[comment]: # (Use `#` at very beging of 1 line to claim this line title)"
+        )
+        .unwrap();
+        writeln!(
+            &mut buf,
+            "[comment]: # (Use `#` to claim next word as a tag, e.g. \"This is hi pri #task\")"
+        )
+        .unwrap();
         writeln!(&mut buf, "[comment]: # (List of existing tags:)").unwrap();
         for (tag, _) in self.tag_to_tags.iter() {
             writeln!(&mut buf, "[comment]: # (#{})", tag).unwrap();
@@ -238,16 +236,13 @@ impl Notebook {
     }
 
     pub fn iadd(&mut self) -> Result<()> {
-        let editor = std::env::var("EDITOR")
-            .unwrap_or(
-                "/usr/bin/vi".to_string()
-            );
+        let editor = std::env::var("EDITOR").unwrap_or("/usr/bin/vi".to_string());
         println!("Editor: {}", editor);
         let tmp = tempfile::Builder::new()
-                .suffix(".md")
-                .rand_bytes(8)
-                .tempfile()
-                .unwrap();
+            .suffix(".md")
+            .rand_bytes(8)
+            .tempfile()
+            .unwrap();
         println!("Tmp file: {}", tmp.path().display());
         self.make_note_template(tmp.as_file()).unwrap();
         tmp.as_file().sync_all().unwrap();
@@ -255,32 +250,33 @@ impl Notebook {
         let child_status = std::process::Command::new(editor)
             .arg(tmp.path().as_os_str())
             .spawn()
-            .unwrap().wait().unwrap();
-        if ! child_status.success() {
-            return Err(Error{message: "Editor process finished with error".to_string()});
+            .unwrap()
+            .wait()
+            .unwrap();
+        if !child_status.success() {
+            return Err(Error {
+                message: "Editor process finished with error".to_string(),
+            });
         }
         let mut note = Note::from_file(tmp.as_file()).unwrap();
         if note.text.is_empty() && note.title.is_empty() {
-            return Err(
-                Error{message: "Empty note file".to_string()}
-            );
+            return Err(Error {
+                message: "Empty note file".to_string(),
+            });
         }
         if note.id.is_empty() {
             note.id = self.notes.len().to_string();
         }
         if self.has(note.id.as_str()) {
             note.id.push('_');
-            note.id.push_str(
-                note.gen_uid().as_str()
-            );
+            note.id.push_str(note.gen_uid().as_str());
         }
-        let task_path = self.dir_path.join(
-            [note.id.as_str(), "md"].join(".")
-        );
+        let task_path = self.dir_path.join([note.id.as_str(), "md"].join("."));
         let file = OpenOptions::new()
             .create(true)
             .write(true)
-            .open(task_path).unwrap();
+            .open(task_path)
+            .unwrap();
         note.to_file(&file).unwrap();
         self.add(note).unwrap();
         Ok(())
