@@ -1,12 +1,26 @@
 extern crate clap;
+extern crate dirs;
 
 use std::path::Path;
+use std::option::Option;
 use std::string::String;
 
 mod storage;
 
-fn query(args: &clap::ArgMatches<>) {
-    let notebook = storage::Notebook::open().unwrap();
+fn spawn_notebook(args: &clap::ArgMatches<>) -> Option<storage::Notebook> {
+    if args.is_present("on-dir") {
+        return Some(
+            storage::Notebook::on_dir(
+                Path::new(
+                    args.value_of("on-dir").unwrap()
+                )
+            ).unwrap()
+        );
+    }
+    None
+}
+
+fn query(notebook: &mut storage::Notebook, args: &clap::ArgMatches<>) {
     if args.is_present("tag") {
         println!(
             "Tags: #{}",
@@ -33,8 +47,7 @@ fn query(args: &clap::ArgMatches<>) {
     }
 }
 
-fn note(_args: &clap::ArgMatches<>) {
-    let mut notebook = storage::Notebook::open().unwrap();
+fn note(notebook: &mut storage::Notebook, _args: &clap::ArgMatches<>) {
     notebook.iadd().unwrap();
 }
 
@@ -42,13 +55,11 @@ fn main() {
     let args = clap::App::new("tissue")
         .version("0.0.1")
         .author("Alexander Kindyakov <akindyakov@gmail.com>")
-        .about("Does awesome things")
         .arg(
-            clap::Arg::with_name("config")
-                .short("c")
-                .long("config")
-                .value_name("FILE")
-                .help("Sets a custom config file")
+            clap::Arg::with_name("on-dir")
+                .long("on-dir")
+                .value_name("DIR")
+                .help("Path to notebook directory")
                 .takes_value(true)
         )
         .arg(
@@ -149,12 +160,13 @@ fn main() {
     println!("Path to config file: {}", config.display());
     println!("SubCommand: {}", args.subcommand_name().unwrap());
 
+    let mut notebook = spawn_notebook(&args).unwrap();
     return match args.subcommand() {
         ("query", Some(sub_args)) => {
-            query(sub_args)
+            query(&mut notebook, sub_args)
         },
         ("new", Some(sub_args)) => {
-            note(sub_args)
+            note(&mut notebook, sub_args)
         },
         (_, None) => {
         },

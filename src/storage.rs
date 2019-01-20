@@ -1,10 +1,11 @@
 extern crate chrono;
 extern crate clap;
+extern crate dirs;
 extern crate groestl;
 extern crate hex;
 extern crate kv;
-extern crate tempfile;
 extern crate regex;
+extern crate tempfile;
 
 use groestl::{
     Digest,
@@ -20,6 +21,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
 use std::string::String;
 use std::vec::Vec;
 use std::io::BufRead;
@@ -199,10 +201,11 @@ impl Note {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Notebook  {
     tag_to_tags: HashMap<String, HashSet<String>>,
     notes: HashMap<String, Note>,
+    dir_path: PathBuf,
 }
 
 fn read_note_from_file(path: &Path) -> Result<Note> {
@@ -214,10 +217,12 @@ fn read_note_from_file(path: &Path) -> Result<Note> {
 }
 
 impl Notebook {
-    pub fn open() -> Result<Notebook> {
-        let dir_path = Path::new("/home/akindyakov/tmp/notes");
-        println!("Path to config file: {}", dir_path.display());
-        let mut notebook = Notebook::default();
+    pub fn on_dir(dir_path: &Path) -> Result<Notebook> {
+        let mut notebook = Notebook{
+            tag_to_tags: HashMap::new(),
+            notes: HashMap::new(),
+            dir_path: dir_path.clone().to_path_buf(),
+        };
         let files = fs::read_dir(dir_path).unwrap();
         for file_r in files {
             let file = file_r.unwrap();
@@ -346,7 +351,7 @@ impl Notebook {
                 note.gen_uid().as_str()
             );
         }
-        let task_path = Path::new("/home/akindyakov/tmp/notes").join(
+        let task_path = self.dir_path.join(
             [note.id.as_str(), "md"].join(".")
         );
         let file = OpenOptions::new()
@@ -356,43 +361,5 @@ impl Notebook {
         note.to_file(&file).unwrap();
         self.add(note).unwrap();
         Ok(())
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct Config {
-    //path: Path,
-}
-
-#[allow(dead_code)]
-impl Config {
-    #[allow(dead_code)]
-    pub fn builder() -> Builder {
-        Builder::new()
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct Builder {
-    t: Config,
-}
-
-impl Builder {
-    pub fn new() -> Self {
-        Self {
-            t: Config::default(),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn build(self) -> Config {
-        self.t
     }
 }
