@@ -68,15 +68,19 @@ impl Note {
         for line_s in buf.lines() {
             let line = line_s.unwrap();
             if line.starts_with("# ") {
-                let line = line
-                    .trim_start_matches('#')
-                    .trim();
+                let line = line.trim_start_matches('#');
                 let re = regex::Regex::new(TAG_REGEXP).unwrap();
-                let id_cap = re.captures(line);
-                if id_cap.is_some() {
-                    note.id = id_cap.unwrap()[1].to_string();
+                let id_cap_opt = re.find(line);
+                if id_cap_opt.is_some() {
+                    let id_cap = id_cap_opt.unwrap();
+                    note.id = line[id_cap.start() + 2..id_cap.end()].to_string();
+                    note.title = [
+                        line[..id_cap.start()].trim(),
+                        line[id_cap.end()..].trim(),
+                    ].join(" ").to_string();
+                } else {
+                    note.title = line.to_string();
                 }
-                note.title = line.to_string();
             } else if line.starts_with("[comment]:") {
                 continue;
             } else {
