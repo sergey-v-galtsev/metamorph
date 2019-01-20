@@ -4,6 +4,7 @@ extern crate groestl;
 extern crate hex;
 extern crate kv;
 extern crate tempfile;
+extern crate regex;
 
 use groestl::{
     Digest,
@@ -16,6 +17,7 @@ use std::io::{
     Write,
 };
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::string::String;
@@ -128,10 +130,13 @@ type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Default, Clone)]
 pub struct Note {
+    pub id: String,
     pub title: String,
     pub text: String,
-    pub tags: Vec<String>,
+    pub tags: HashSet<String>,
 }
+
+const tag_regexp: &str = r" #([[:alnum:]/-_]+)";
 
 impl Note {
     // TODO: use trait for argument
@@ -141,19 +146,22 @@ impl Note {
         for line_s in buf.lines() {
             let line = line_s.unwrap();
             if line.starts_with("# ") {
-                note.title = line
-                    .trim()
+                let line = line
                     .trim_start_matches('#')
-                    .to_string();
+                    .trim();
+                let re = regex::Regex::new(tag_regexp).unwrap();
+                let id_cap = re.find(line);
+                if id_cap.is_some() {
+                    note.id = id_cap.unwrap().as_str().to_string();
+                }
+                note.title = line.to_string();
+            } else {
+                let re = regex::Regex::new(tag_regexp).unwrap();
+                note.tags.extend(
+                    re.captures_iter(line.as_str()).map(|m| m[0].to_string())
+                );
+                note.text.push_str(line.as_str());
             }
-            note.text.push_str(line.as_str());
-            note.tags.extend(
-                line.split(" #")
-                    .skip(1)
-                    .map(
-                        |t| t.split_whitespace().next().unwrap().to_string()
-                    )
-            );
         }
         return Ok(note);
     }
@@ -161,23 +169,18 @@ impl Note {
     // TODO: use trait Write for argument
     pub fn to_file(&self, file: &std::fs::File) -> Result<()> {
         let mut buf = BufWriter::new(file);
-        // TODO
+        write!(&mut buf, "# [{}] {}\n\n", self.id, self.title).unwrap();
+        writeln!(&mut buf, " {}", self.tags.iter().fold(
+                "#".to_string(),
+                |mut acc: String, item| {
+                    acc.push_str(", #");
+                    acc.push_str(item);
+                    acc
+                }
+            )
+        ).unwrap();
+        writeln!(&mut buf, "{}",self.text).unwrap();
         Ok(())
-    }
-
-    pub fn gen_uid(&self) -> Result<String> {
-        let mut uid = self.title.to_lowercase();
-        uid.retain(|ch| ch.is_alphanumeric());
-        uid.truncate(8);
-        uid.push('_');
-        let mut hasher = Groestl256::default();
-        hasher.input(self.text);
-        for tag in self.tags.iter() {
-            hasher.input(tag);
-        }
-        uid.push_str(
-            hex::encode(hasher.result())
-        );
     }
 }
 
@@ -190,7 +193,7 @@ impl Note {
 
 #[derive(Debug, Default)]
 pub struct Notebook  {
-    tag_to_tags: HashMap<String, Vec<String>>,
+    tag_to_tags: HashMap<String, HashSet<String>>,
     notes: HashMap<String, Note>,
 }
 
@@ -204,25 +207,20 @@ fn read_note_from_file(path: &Path) -> Result<Note> {
 
 impl Notebook {
     pub fn open() -> Result<Notebook> {
-        let dir_path = Path::new("/home/akindyakov/source/git.note/todo/files");
+        let dir_path = Path::new("/home/akindyakov/tmp/notes");
         println!("Path to config file: {}", dir_path.display());
         let mut notebook = Notebook::default();
         let files = fs::read_dir(dir_path).unwrap();
         for file_r in files {
             let file = file_r.unwrap();
-            let mut note = read_note_from_file(file.path().as_path()).unwrap();
-            let uniq_tag = file.path().file_stem().unwrap().to_str().unwrap().to_string();
-            note.tags.push(uniq_tag.clone());
-            for tag in &note.tags {
-                let tag_refs = notebook.tag_to_tags.entry(tag.to_string()).or_insert(
-                    Vec::new()
-                );
-                tag_refs.push(uniq_tag.clone());
+            if file.file_type().unwrap().is_dir() {
+                continue;
             }
-            notebook.notes.insert(
-                uniq_tag,
-                note
-            );
+            let mut note = read_note_from_file(file.path().as_path()).unwrap();
+            if note.id.is_empty() {
+                note.id = file.path().file_stem().unwrap().to_str().unwrap().to_string();
+            }
+            notebook.add(note).unwrap();
         }
         Ok(notebook)
     }
@@ -238,9 +236,11 @@ impl Notebook {
         Ok(tags)
     }
 
-    pub fn expand_tag(&self, tag: &str) -> Vec<String> {
+    pub fn expand_tag(&self, tag: &str) -> HashSet<String> {
         self.tag_to_tags.get(tag).map_or(
-            [tag.to_string()].to_vec(),
+            HashSet::from(
+                [tag.to_string()].iter().cloned().collect()
+            ),
             |g| g.clone()
         )
     }
@@ -260,23 +260,35 @@ impl Notebook {
     }
 
     #[allow(dead_code)]
-    pub fn add(&self, _note: &Note) -> Result<()> {
-        Err(Error::default())
+    pub fn add(&mut self, note: Note) -> Result<()> {
+        for tag in note.tags.iter() {
+            let tag_refs = self.tag_to_tags.get_mut(tag);
+            if tag_refs.is_some() {
+                tag_refs.unwrap().insert(note.id.clone());
+            } else {
+                self.tag_to_tags.insert(
+                    tag.to_string(),
+                    HashSet::from(
+                        [note.id.clone()].iter().cloned().collect(),
+                    ),
+                );
+            }
+        }
+        self.notes.insert(
+            note.id.clone(),
+            note
+        );
+        Ok(())
     }
 
-    pub fn iadd(&self) -> Result<()> { // -> Result<&str> {
+    pub fn iadd(&mut self) -> Result<()> { // -> Result<&str> {
         let editor = std::env::var("EDITOR")
             .unwrap_or(
                 "/usr/bin/vi".to_string()
             );
         println!("Editor: {}", editor);
-        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        let tmp = tempfile::NamedTempFile::new().unwrap();
         println!("Tmp file: {}", tmp.path().display());
-        // let mut editor_child = std::process::Command::new(editor)
-        //     .arg(tmp.path().as_os_str())
-        //     .spawn()
-        //     .expect("d");
-        // let editor_output = editor_child.wait().unwrap();
         let child_status = std::process::Command::new(editor)
             .arg(tmp.path().as_os_str())
             .spawn()
@@ -284,8 +296,17 @@ impl Notebook {
         if ! child_status.success() {
             return Err(Error{message: "Editor process finished with error".to_string()});
         }
-        let note = Note::from_file(tmp.as_file());
-        // TODO: interactively read tags and title if required
+        let mut note = Note::from_file(tmp.as_file()).unwrap();
+        note.id = self.notes.len().to_string();
+        let task_path = Path::new("/home/akindyakov/tmp/notes").join(
+            [note.id.as_str(), "md"].join(".")
+        );
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(task_path).unwrap();
+        note.to_file(&file).unwrap();
+        self.add(note).unwrap();
         Ok(())
     }
 }

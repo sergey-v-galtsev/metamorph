@@ -1,6 +1,7 @@
 extern crate clap;
 
 use std::path::Path;
+use std::string::String;
 
 mod storage;
 
@@ -19,14 +20,21 @@ fn query(args: &clap::ArgMatches<>) {
                 "Note: {} : {} \n    #: {}",
                 t,
                 n.title,
-                n.tags.join(", ")
+                n.tags.iter().fold(
+                    "#".to_string(),
+                    |mut acc: String, item| {
+                        acc.push_str(item);
+                        acc.push_str(", #");
+                        acc
+                    }
+                )
             );
         }
     }
 }
 
 fn note(_args: &clap::ArgMatches<>) {
-    let notebook = storage::Notebook::open().unwrap();
+    let mut notebook = storage::Notebook::open().unwrap();
     notebook.iadd().unwrap();
 }
 
