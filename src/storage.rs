@@ -186,6 +186,16 @@ impl Note {
         writeln!(&mut buf, "{}", self.text).unwrap();
         Ok(())
     }
+
+    pub fn gen_uid(&self) -> String {
+        let mut hasher = Groestl256::default();
+        hasher.input(self.title.as_str());
+        hasher.input(self.text.as_str());
+        for tag in self.tags.iter() {
+            hasher.input(tag);
+        }
+        hex::encode(hasher.result()).to_string()
+    }
 }
 
 #[derive(Debug, Default)]
@@ -311,7 +321,10 @@ impl Notebook {
             note.id = self.notes.len().to_string();
         }
         if self.has(note.id.as_str()) {
-            writeln!(&tmp, "[comment]: # such note id is already exists");
+            note.id.push('_');
+            note.id.push_str(
+                note.gen_uid().as_str()
+            );
         }
         let task_path = Path::new("/home/akindyakov/tmp/notes").join(
             [note.id.as_str(), "md"].join(".")
