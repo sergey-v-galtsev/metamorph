@@ -68,9 +68,8 @@ fn note(notebook: &mut storage::Notebook, _args: &clap::ArgMatches) {
 }
 
 fn main() {
-    let args = clap::App::new("tissue")
+    let args = clap::App::new("metamorph: notebook")
         .version("0.0.1")
-        .author("Alexander Kindyakov <akindyakov@gmail.com>")
         .arg(
             clap::Arg::with_name("on-dir")
                 .long("on-dir")
@@ -128,42 +127,7 @@ fn main() {
                     .help("tag"),
             ),
         )
-        .subcommand(
-            clap::SubCommand::with_name("name")
-                .arg(
-                    clap::Arg::with_name("name")
-                        .long("name")
-                        .multiple(true)
-                        .short("n")
-                        .takes_value(true)
-                        .help("tag"),
-                )
-                .arg(
-                    clap::Arg::with_name("tag")
-                        .long("tag")
-                        .multiple(true)
-                        .short("t")
-                        .takes_value(true)
-                        .help("tag"),
-                ),
-        )
-        .subcommand(
-            clap::SubCommand::with_name("test")
-                .about("controls testing features")
-                .version("1.3")
-                .author("Someone E. <someone_else@other.com>")
-                .arg(
-                    clap::Arg::with_name("debug")
-                        .short("d")
-                        .help("print debug information verbosely"),
-                ),
-        )
         .get_matches();
-
-    // Gets a value for config if supplied by user, or defaults to "default.conf"
-    let config = Path::new(args.value_of("config").unwrap_or("~/.tissue.conf"));
-    println!("Path to config file: {}", config.display());
-    println!("SubCommand: {}", args.subcommand_name().unwrap());
 
     let mut notebook = spawn_notebook(&args).unwrap();
     return match args.subcommand() {

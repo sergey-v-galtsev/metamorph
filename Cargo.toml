@@ -1,5 +1,5 @@
 [package]
-name = "tissue"
+name = "metamorph"
 version = "0.1.0"
 authors = ["akindyakov <akindyakov@gmail.com>"]
 edition = "2018"
