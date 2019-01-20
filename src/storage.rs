@@ -171,17 +171,19 @@ impl Note {
     // TODO: use trait Write for argument
     pub fn to_file(&self, file: &std::fs::File) -> Result<()> {
         let mut buf = BufWriter::new(file);
-        write!(&mut buf, "# [{}] {}\n\n", self.id, self.title).unwrap();
-        writeln!(&mut buf, " {}", self.tags.iter().fold(
-                "#".to_string(),
-                |mut acc: String, item| {
-                    acc.push_str(", #");
-                    acc.push_str(item);
-                    acc
-                }
-            )
-        ).unwrap();
-        writeln!(&mut buf, "{}",self.text).unwrap();
+        write!(&mut buf, "# #{} {}\n\n", self.id, self.title).unwrap();
+        if !self.tags.is_empty() {
+            write!(&mut buf, " {}\n\n", self.tags.iter().fold(
+                    "#".to_string(),
+                    |mut acc: String, item| {
+                        acc.push_str(", #");
+                        acc.push_str(item);
+                        acc
+                    }
+                )
+            ).unwrap();
+        }
+        writeln!(&mut buf, "{}", self.text).unwrap();
         Ok(())
     }
 }
@@ -254,6 +256,10 @@ impl Notebook {
         Ok(ret)
     }
 
+    pub fn has(&self, tag: &str) -> bool {
+        self.notes.contains_key(tag)
+    }
+
     #[allow(dead_code)]
     pub fn add(&mut self, note: Note) -> Result<()> {
         for tag in note.tags.iter() {
@@ -296,7 +302,17 @@ impl Notebook {
             return Err(Error{message: "Editor process finished with error".to_string()});
         }
         let mut note = Note::from_file(tmp.as_file()).unwrap();
-        note.id = self.notes.len().to_string();
+        if note.text.is_empty() && note.title.is_empty() {
+            return Err(
+                Error{message: "Empty note file".to_string()}
+            );
+        }
+        if note.id.is_empty() {
+            note.id = self.notes.len().to_string();
+        }
+        if self.has(note.id.as_str()) {
+            writeln!(&tmp, "[comment]: # such note id is already exists");
+        }
         let task_path = Path::new("/home/akindyakov/tmp/notes").join(
             [note.id.as_str(), "md"].join(".")
         );
