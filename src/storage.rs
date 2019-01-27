@@ -98,21 +98,7 @@ impl Note {
     // TODO: use trait Write for argument
     pub fn to_file(&self, file: &fs::File) -> Result<()> {
         let mut buf = io::BufWriter::new(file);
-        write!(&mut buf, "# #{} {}\n\n", self.id, self.title).unwrap();
-        if !self.tags.is_empty() {
-            write!(
-                &mut buf,
-                " {}\n\n",
-                self.tags
-                    .iter()
-                    .fold("#".to_string(), |mut acc: String, item| {
-                        acc.push_str(", #");
-                        acc.push_str(item);
-                        acc
-                    })
-            )
-            .unwrap();
-        }
+        writeln!(&mut buf, "# #{} {}", self.id, self.title).unwrap();
         writeln!(&mut buf, "{}", self.text).unwrap();
         Ok(())
     }
@@ -220,6 +206,64 @@ impl Notebook {
         Ok(ret)
     }
 
+    pub fn iedit(
+        &mut self,
+        tags: &Vec<&str>,
+        no_tags: &Vec<&str>,
+    ) -> Result<()> {
+        let tags = self.expand_tag_as_and(tags, no_tags);
+        if tags.len() != 1 {
+            return Err(Error {
+                message: "To many notes in query result, expected only 1 to iedit".to_string(),
+            });
+        }
+        let note = self.notes.get(
+            tags.iter().next().unwrap().as_str()
+        ).unwrap();
+        println!("Title before: {}", note.title);
+        println!("Text before: {}", note.text);
+        let editor = env::var("EDITOR").unwrap_or("/usr/bin/vi".to_string());
+        println!("Editor: {}", editor);
+        let tmp = tempfile::Builder::new()
+            .suffix(".md")
+            .rand_bytes(8)
+            .tempfile()
+            .unwrap();
+        println!("Tmp file: {}", tmp.path().display());
+        note.to_file(tmp.as_file()).unwrap();
+        self.write_comments(tmp.as_file()).unwrap();
+        let child_status = process::Command::new(editor)
+            .arg(tmp.path().as_os_str())
+            .spawn()
+            .unwrap()
+            .wait()
+            .unwrap();
+        if !child_status.success() {
+            return Err(Error {
+                message: "Editor process finished with error".to_string(),
+            });
+        }
+        tmp.as_file().sync_all().unwrap();
+        tmp.as_file().seek(io::SeekFrom::Start(0)).unwrap();
+        let mut new_note = Note::from_file(tmp.as_file()).unwrap();
+        if new_note.id.is_empty() || new_note.id != note.id {
+            new_note.id = note.id.clone();
+        }
+        println!("Title: {}", new_note.title);
+        println!("Text: {}", new_note.text);
+        if new_note.id.is_empty() {
+            new_note.id = self.notes.len().to_string();
+        }
+        let task_path = self.dir_path.join([new_note.id.as_str(), "md"].join("."));
+        let file = fs::OpenOptions::new()
+            .write(true)
+            .open(task_path)
+            .unwrap();
+        new_note.to_file(&file).unwrap();
+        self.add(new_note).unwrap();
+        Ok(())
+    }
+
     pub fn has(&self, tag: &str) -> bool {
         self.notes.contains_key(tag)
     }
@@ -236,6 +280,19 @@ impl Notebook {
         Ok(())
     }
 
+    fn write_comments(&self, file: &fs::File) -> Result<()> {
+        let mut buf = io::BufWriter::new(file);
+        writeln!(&mut buf, "[comment]: # (List of existing tags:)").unwrap();
+        for (tag, _) in self.tag_to_tags.iter() {
+            writeln!(&mut buf, "[comment]: # (#{})", tag).unwrap();
+        }
+        writeln!(&mut buf, "[comment]: # (List of existing notes:)").unwrap();
+        for (_, note) in self.notes.iter() {
+            writeln!(&mut buf, "[comment]: # (#{} - {})", note.id, note.title).unwrap();
+        }
+        Ok(())
+    }
+
     fn make_note_template(&self, file: &fs::File) -> Result<()> {
         let mut buf = io::BufWriter::new(file);
         write!(&mut buf, "# \n\n\n").unwrap();
@@ -249,14 +306,6 @@ impl Notebook {
             "[comment]: # (Use `#` to claim next word as a tag, e.g. \"This is hi pri #task\")"
         )
         .unwrap();
-        writeln!(&mut buf, "[comment]: # (List of existing tags:)").unwrap();
-        for (tag, _) in self.tag_to_tags.iter() {
-            writeln!(&mut buf, "[comment]: # (#{})", tag).unwrap();
-        }
-        writeln!(&mut buf, "[comment]: # (List of existing notes:)").unwrap();
-        for (_, note) in self.notes.iter() {
-            writeln!(&mut buf, "[comment]: # (#{} - {})", note.id, note.title).unwrap();
-        }
         Ok(())
     }
 
@@ -270,6 +319,7 @@ impl Notebook {
             .unwrap();
         println!("Tmp file: {}", tmp.path().display());
         self.make_note_template(tmp.as_file()).unwrap();
+        self.write_comments(tmp.as_file()).unwrap();
         tmp.as_file().sync_all().unwrap();
         tmp.as_file().seek(io::SeekFrom::Start(0)).unwrap();
         let child_status = process::Command::new(editor)

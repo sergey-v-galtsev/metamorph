@@ -86,6 +86,20 @@ fn note(notebook: &mut storage::Notebook, _args: &clap::ArgMatches) {
     notebook.iadd().unwrap();
 }
 
+fn edit(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
+    let mut tags = Vec::new();
+    if let Some(os) = args.values_of("tag") {
+        tags.extend(os);
+    }
+    let mut ntags = Vec::new();
+    if let Some(os) = args.values_of("ntag") {
+        ntags.extend(os);
+    }
+    println!("Include all tags from [{}]", tags.join(", "));
+    println!("Exclude all tags from [{}]", ntags.join(", "));
+    notebook.iedit(&tags, &ntags).unwrap();
+}
+
 fn main() {
     let args = clap::App::new("metamorph: notebook")
         .version("0.0.0")
@@ -125,6 +139,10 @@ fn main() {
             clap::SubCommand::with_name("show")
                 .about("show")
         )
+        .subcommand(
+            clap::SubCommand::with_name("edit")
+                .about("edit")
+        )
         .get_matches();
 
     let mut notebook = spawn_notebook(&args).unwrap();
@@ -132,6 +150,7 @@ fn main() {
         ("list", Some(sub_args)) => list(&mut notebook, sub_args),
         ("new", Some(sub_args)) => note(&mut notebook, sub_args),
         ("show", Some(sub_args)) => show(&mut notebook, sub_args),
+        ("edit", Some(sub_args)) => edit(&mut notebook, sub_args),
         (_, None) => {}
         (_, Some(_)) => {}
     };
