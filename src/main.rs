@@ -11,7 +11,11 @@ mod storage;
 fn spawn_notebook(args: &clap::ArgMatches) -> Option<storage::Notebook> {
     if args.is_present("on-dir") {
         return Some(
-            storage::Notebook::on_dir(Path::new(args.value_of("on-dir").unwrap())).unwrap(),
+            storage::Notebook::on_dir(
+                Path::new(
+                    args.value_of("on-dir").unwrap()
+                )
+            ).unwrap(),
         );
     }
     None
@@ -93,68 +97,33 @@ fn main() {
                 .takes_value(true),
         )
         .arg(
-            clap::Arg::with_name("v")
-                .short("v")
+            clap::Arg::with_name("tag")
+                .long("tag")
                 .multiple(true)
+                .short("t")
+                .takes_value(true)
                 .global(true)
-                .help("Sets the level of verbosity"),
+                .help("tag"),
+        )
+        .arg(
+            clap::Arg::with_name("ntag")
+                .long("ntag")
+                .multiple(true)
+                .takes_value(true)
+                .global(true)
+                .help("Not include this tag"),
         )
         .subcommand(
             clap::SubCommand::with_name("list")
                 .about("list")
-                .arg(
-                    clap::Arg::with_name("tag")
-                        .long("tag")
-                        .multiple(true)
-                        .short("t")
-                        .takes_value(true)
-                        .help("tag"),
-                )
-                .arg(
-                    clap::Arg::with_name("ntag")
-                        .long("ntag")
-                        .multiple(true)
-                        .takes_value(true)
-                        .help("Not include this tag"),
-                )
-                .arg(
-                    clap::Arg::with_name("name")
-                        .help("name")
-                        .long("name")
-                        .short("n")
-                        .takes_value(true),
-                )
-                .arg(
-                    clap::Arg::with_name("message")
-                        .help("message")
-                        .long("message")
-                        .short("m")
-                        .multiple(true)
-                        .takes_value(true),
-                )
-                .arg(
-                    clap::Arg::with_name("modify")
-                        .long("mod")
-                        .short("c")
-                        .help("modify existing"),
-                ),
         )
-        .subcommand(clap::SubCommand::with_name("new"))
         .subcommand(
-            clap::SubCommand::with_name("show").arg(
-                clap::Arg::with_name("tag")
-                    .long("tag")
-                    .short("t")
-                    .takes_value(true)
-                    .help("tag"),
-            )
-            .arg(
-                clap::Arg::with_name("ntag")
-                    .long("ntag")
-                    .multiple(true)
-                    .takes_value(true)
-                    .help("Not include this tag"),
-            ),
+            clap::SubCommand::with_name("new")
+                .about("new")
+        )
+        .subcommand(
+            clap::SubCommand::with_name("show")
+                .about("show")
         )
         .get_matches();
 
