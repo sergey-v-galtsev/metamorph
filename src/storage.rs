@@ -331,9 +331,7 @@ impl Notebook {
                 message: "Editor process finished with error".to_string(),
             });
         }
-        tmp.as_file().sync_all().unwrap();
-        tmp.as_file().seek(io::SeekFrom::Start(0)).unwrap();
-        let new_note = Note::from_file(tmp.as_file()).unwrap();
+        let new_note = read_note_from_file(tmp.path()).unwrap();
         Ok(new_note)
     }
 }
