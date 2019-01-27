@@ -149,7 +149,7 @@ impl Notebook {
                     .unwrap()
                     .to_string();
             }
-            notebook.add(note).unwrap();
+            notebook.add_to_index(note).unwrap();
         }
         Ok(notebook)
     }
@@ -217,11 +217,9 @@ impl Notebook {
                 message: "To many notes in query result, expected only 1 to iedit".to_string(),
             });
         }
-        let note = self.notes.get(
+        let old_note = self.notes.get(
             tags.iter().next().unwrap().as_str()
         ).unwrap();
-        println!("Title before: {}", note.title);
-        println!("Text before: {}", note.text);
         let editor = env::var("EDITOR").unwrap_or("/usr/bin/vi".to_string());
         println!("Editor: {}", editor);
         let tmp = tempfile::Builder::new()
@@ -230,7 +228,7 @@ impl Notebook {
             .tempfile()
             .unwrap();
         println!("Tmp file: {}", tmp.path().display());
-        note.to_file(tmp.as_file()).unwrap();
+        old_note.to_file(tmp.as_file()).unwrap();
         self.write_comments(tmp.as_file()).unwrap();
         let child_status = process::Command::new(editor)
             .arg(tmp.path().as_os_str())
@@ -246,20 +244,12 @@ impl Notebook {
         tmp.as_file().sync_all().unwrap();
         tmp.as_file().seek(io::SeekFrom::Start(0)).unwrap();
         let mut new_note = Note::from_file(tmp.as_file()).unwrap();
-        if new_note.id.is_empty() || new_note.id != note.id {
-            new_note.id = note.id.clone();
+        if new_note.id.is_empty() || new_note.id != old_note.id {
+            new_note.id = old_note.id.clone();
         }
-        println!("Title: {}", new_note.title);
-        println!("Text: {}", new_note.text);
         if new_note.id.is_empty() {
             new_note.id = self.notes.len().to_string();
         }
-        let task_path = self.dir_path.join([new_note.id.as_str(), "md"].join("."));
-        let file = fs::OpenOptions::new()
-            .write(true)
-            .open(task_path)
-            .unwrap();
-        new_note.to_file(&file).unwrap();
         self.add(new_note).unwrap();
         Ok(())
     }
@@ -268,7 +258,7 @@ impl Notebook {
         self.notes.contains_key(tag)
     }
 
-    pub fn add(&mut self, note: Note) -> Result<()> {
+    pub fn add_to_index(&mut self, note: Note) -> Result<()> {
         for tag in note.tags.iter() {
             self.tag_to_tags.entry(
                 tag.to_string()
@@ -277,6 +267,18 @@ impl Notebook {
             );
         }
         self.notes.insert(note.id.clone(), note);
+        Ok(())
+    }
+
+    pub fn add(&mut self, note: Note) -> Result<()> {
+        let task_path = self.dir_path.join([note.id.as_str(), "md"].join("."));
+        let file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(task_path)
+            .unwrap();
+        note.to_file(&file).unwrap();
+        self.add_to_index(note).unwrap();
         Ok(())
     }
 
@@ -347,13 +349,6 @@ impl Notebook {
             let uid = note.gen_uid();
             note.id.push_str(uid.as_str());
         }
-        let task_path = self.dir_path.join([note.id.as_str(), "md"].join("."));
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(task_path)
-            .unwrap();
-        note.to_file(&file).unwrap();
         self.add(note).unwrap();
         Ok(())
     }
