@@ -69,7 +69,7 @@ fn note(notebook: &mut storage::Notebook, _args: &clap::ArgMatches) {
 
 fn main() {
     let args = clap::App::new("metamorph: notebook")
-        .version("0.0.1")
+        .version("0.0.0")
         .arg(
             clap::Arg::with_name("on-dir")
                 .long("on-dir")

@@ -3,45 +3,54 @@ extern crate clap;
 extern crate dirs;
 extern crate groestl;
 extern crate hex;
-extern crate kv;
 extern crate regex;
 extern crate tempfile;
 
-use groestl::{Digest, Groestl256};
+use storage::groestl::Digest;
+use storage::groestl::Groestl256;
+
 use std::collections::HashMap;
 use std::collections::HashSet;
+
+use std::env;
+use std::error;
+use std::fmt;
 use std::fs;
-use std::fs::OpenOptions;
+use std::path;
+use std::process;
+use std::result;
+
+use std::io;
 use std::io::BufRead;
 use std::io::Seek;
-use std::io::{BufReader, BufWriter, Write};
-use std::path::Path;
-use std::path::PathBuf;
+use std::io::Write;
+
 use std::string::String;
 use std::vec::Vec;
+
 
 #[derive(Debug, Clone, Default)]
 pub struct Error {
     message: String,
 }
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "invalid first item to double")
     }
 }
 
-impl std::error::Error for Error {
+impl error::Error for Error {
     fn description(&self) -> &str {
         "invalid first item to double"
     }
 
-    fn cause(&self) -> Option<&std::error::Error> {
+    fn cause(&self) -> Option<&error::Error> {
         None
     }
 }
 
-type Result<T> = std::result::Result<T, Error>;
+type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug, Default, Clone)]
 pub struct Note {
@@ -55,13 +64,13 @@ const TAG_REGEXP: &str = r"[^#]#([[:alnum:]/-_]+)";
 
 impl Note {
     // TODO: use trait for argument
-    pub fn from_file(file: &std::fs::File) -> Result<Note> {
-        let buf = BufReader::new(file);
+    pub fn from_file(file: &fs::File) -> Result<Note> {
+        let buf = io::BufReader::new(file);
         let mut note = Note::default();
         for line_s in buf.lines() {
             let line = line_s.unwrap();
             if line.starts_with("# ") {
-                let line = line.trim_start_matches('#');
+                let line = line.trim_matches('#');
                 let re = regex::Regex::new(TAG_REGEXP).unwrap();
                 let id_cap_opt = re.find(line);
                 if id_cap_opt.is_some() {
@@ -87,8 +96,8 @@ impl Note {
     }
 
     // TODO: use trait Write for argument
-    pub fn to_file(&self, file: &std::fs::File) -> Result<()> {
-        let mut buf = BufWriter::new(file);
+    pub fn to_file(&self, file: &fs::File) -> Result<()> {
+        let mut buf = io::BufWriter::new(file);
         write!(&mut buf, "# #{} {}\n\n", self.id, self.title).unwrap();
         if !self.tags.is_empty() {
             write!(
@@ -123,16 +132,16 @@ impl Note {
 pub struct Notebook {
     tag_to_tags: HashMap<String, HashSet<String>>,
     notes: HashMap<String, Note>,
-    dir_path: PathBuf,
+    dir_path: path::PathBuf,
 }
 
-fn read_note_from_file(path: &Path) -> Result<Note> {
-    let file = OpenOptions::new().read(true).open(path).unwrap();
+fn read_note_from_file(path: &path::Path) -> Result<Note> {
+    let file = fs::OpenOptions::new().read(true).open(path).unwrap();
     return Note::from_file(&file);
 }
 
 impl Notebook {
-    pub fn on_dir(dir_path: &Path) -> Result<Notebook> {
+    pub fn on_dir(dir_path: &path::Path) -> Result<Notebook> {
         let mut notebook = Notebook {
             tag_to_tags: HashMap::new(),
             notes: HashMap::new(),
@@ -195,25 +204,20 @@ impl Notebook {
         self.notes.contains_key(tag)
     }
 
-    #[allow(dead_code)]
     pub fn add(&mut self, note: Note) -> Result<()> {
         for tag in note.tags.iter() {
-            let tag_refs = self.tag_to_tags.get_mut(tag);
-            if tag_refs.is_some() {
-                tag_refs.unwrap().insert(note.id.clone());
-            } else {
-                self.tag_to_tags.insert(
-                    tag.to_string(),
-                    HashSet::from([note.id.clone()].iter().cloned().collect()),
-                );
-            }
+            self.tag_to_tags.entry(
+                tag.to_string()
+            ).or_insert(HashSet::new()).insert(
+                note.id.clone()
+            );
         }
         self.notes.insert(note.id.clone(), note);
         Ok(())
     }
 
-    fn make_note_template(&self, file: &std::fs::File) -> Result<()> {
-        let mut buf = BufWriter::new(file);
+    fn make_note_template(&self, file: &fs::File) -> Result<()> {
+        let mut buf = io::BufWriter::new(file);
         write!(&mut buf, "# \n\n\n").unwrap();
         writeln!(
             &mut buf,
@@ -237,7 +241,7 @@ impl Notebook {
     }
 
     pub fn iadd(&mut self) -> Result<()> {
-        let editor = std::env::var("EDITOR").unwrap_or("/usr/bin/vi".to_string());
+        let editor = env::var("EDITOR").unwrap_or("/usr/bin/vi".to_string());
         println!("Editor: {}", editor);
         let tmp = tempfile::Builder::new()
             .suffix(".md")
@@ -247,8 +251,8 @@ impl Notebook {
         println!("Tmp file: {}", tmp.path().display());
         self.make_note_template(tmp.as_file()).unwrap();
         tmp.as_file().sync_all().unwrap();
-        tmp.as_file().seek(std::io::SeekFrom::Start(0)).unwrap();
-        let child_status = std::process::Command::new(editor)
+        tmp.as_file().seek(io::SeekFrom::Start(0)).unwrap();
+        let child_status = process::Command::new(editor)
             .arg(tmp.path().as_os_str())
             .spawn()
             .unwrap()
@@ -270,10 +274,11 @@ impl Notebook {
         }
         if self.has(note.id.as_str()) {
             note.id.push('_');
-            note.id.push_str(note.gen_uid().as_str());
+            let uid = note.gen_uid();
+            note.id.push_str(uid.as_str());
         }
         let task_path = self.dir_path.join([note.id.as_str(), "md"].join("."));
-        let file = OpenOptions::new()
+        let file = fs::OpenOptions::new()
             .create(true)
             .write(true)
             .open(task_path)
