@@ -4,6 +4,7 @@ extern crate dirs;
 use std::option::Option;
 use std::path::Path;
 use std::string::String;
+use std::vec::Vec;
 
 mod storage;
 
@@ -17,50 +18,64 @@ fn spawn_notebook(args: &clap::ArgMatches) -> Option<storage::Notebook> {
 }
 
 fn list(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
-    if args.is_present("tag") {
+    let mut tags = Vec::new();
+    if let Some(os) = args.values_of("tag") {
+        tags.extend(os);
+    }
+    let mut ntags = Vec::new();
+    if let Some(os) = args.values_of("ntag") {
+        ntags.extend(os);
+    }
+    println!("Include all tags from [{}]", tags.join(", "));
+    println!("Exclude all tags from [{}]", ntags.join(", "));
+    let notes = notebook.query_and(&tags, &ntags).unwrap();
+    for (_, n) in notes {
         println!(
-            "Tags: #{}",
-            args.values_of("tag")
-                .unwrap()
-                .collect::<Vec<_>>()
-                .join(" #")
+            "#{}: {}\n    [{}]\n",
+            n.id,
+            n.title,
+            n.tags.iter().fold(
+                String::new(),
+                |mut acc, i| {
+                    acc.push('#');
+                    acc.push_str(i.as_str());
+                    acc.push_str(", ");
+                    acc
+                }
+            ),
         );
-        let notes = notebook
-            .query(&args.values_of("tag").unwrap().collect::<Vec<_>>())
-            .unwrap();
-        for (t, n) in notes {
-            println!(
-                "#{}: {}\n    {}\n",
-                t,
-                n.title,
-                n.tags
-                    .iter()
-                    .fold("#".to_string(), |mut acc: String, item| {
-                        acc.push_str(item);
-                        acc.push_str(", #");
-                        acc
-                    }),
-            );
-        }
     }
 }
 
 fn show(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
-    let tag = args.value_of("tag").unwrap();
-    let notes = notebook.query(&vec![tag]).unwrap();
-    let (_, note) = notes.iter().next().unwrap();
-    println!("#{} {}\n", note.id, note.title);
-    println!(
-        "{}",
-        note.tags
-            .iter()
-            .fold(" #".to_string(), |mut acc: String, item| {
-                acc.push_str(item);
-                acc.push_str(" #");
-                acc
-            })
-    );
-    println!("{}\n", note.text);
+    let mut tags = Vec::new();
+    if let Some(os) = args.values_of("tag") {
+        tags.extend(os);
+    }
+    let mut ntags = Vec::new();
+    if let Some(os) = args.values_of("ntag") {
+        ntags.extend(os);
+    }
+    println!("Include all tags from [{}]", tags.join(", "));
+    println!("Exclude all tags from [{}]", ntags.join(", "));
+    let notes = notebook.query_and(&tags, &ntags).unwrap();
+    for (_, n) in notes {
+        println!(
+            "#{}: {}\n    [{}]\n{}",
+            n.id,
+            n.title,
+            n.tags.iter().fold(
+                String::new(),
+                |mut acc, i| {
+                    acc.push('#');
+                    acc.push_str(i.as_str());
+                    acc.push_str(", ");
+                    acc
+                }
+            ),
+            n.text,
+        );
+    }
 }
 
 fn note(notebook: &mut storage::Notebook, _args: &clap::ArgMatches) {
@@ -96,6 +111,13 @@ fn main() {
                         .help("tag"),
                 )
                 .arg(
+                    clap::Arg::with_name("ntag")
+                        .long("ntag")
+                        .multiple(true)
+                        .takes_value(true)
+                        .help("Not include this tag"),
+                )
+                .arg(
                     clap::Arg::with_name("name")
                         .help("name")
                         .long("name")
@@ -125,6 +147,13 @@ fn main() {
                     .short("t")
                     .takes_value(true)
                     .help("tag"),
+            )
+            .arg(
+                clap::Arg::with_name("ntag")
+                    .long("ntag")
+                    .multiple(true)
+                    .takes_value(true)
+                    .help("Not include this tag"),
             ),
         )
         .get_matches();

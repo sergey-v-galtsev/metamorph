@@ -6,8 +6,8 @@ extern crate hex;
 extern crate regex;
 extern crate tempfile;
 
-use storage::groestl::Digest;
-use storage::groestl::Groestl256;
+use groestl::Digest;
+use groestl::Groestl256;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -186,14 +186,34 @@ impl Notebook {
         )
     }
 
-    pub fn query(&self, tags: &Vec<&str>) -> Result<HashMap<String, Note>> {
+    pub fn expand_tag_as_and(
+        &self,
+        tags: &Vec<&str>,
+        no_tags: &Vec<&str>,
+    ) -> HashSet<String> {
+        let mut exp_tags = tags.iter().map(|t| self.expand_tag(t));
+        let mut tags = exp_tags.next().unwrap();
+        for include_group in exp_tags {
+            tags = tags.intersection(&include_group).cloned().collect();
+        }
+        for exclude_group in no_tags.iter().map(|t| self.expand_tag(t)) {
+            tags = tags.difference(&exclude_group).cloned().collect();
+        }
+        return tags;
+    }
+
+    pub fn query_and(
+        &self,
+        tags: &Vec<&str>,
+        no_tags: &Vec<&str>,
+    ) -> Result<HashMap<String, Note>> {
         let mut ret = HashMap::new();
-        for tag in tags {
-            let group = self.expand_tag(tag);
-            for tag in group {
+        for tag in self.expand_tag_as_and(tags, no_tags) {
+            let note = self.notes.get(tag.as_str());
+            if note.is_some() {
                 ret.insert(
                     tag.to_string(),
-                    self.notes.get(tag.as_str()).unwrap().clone(),
+                    note.unwrap().clone(), // TODO: take note as a ref
                 );
             }
         }
