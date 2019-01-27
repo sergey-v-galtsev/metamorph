@@ -6,8 +6,8 @@ extern crate hex;
 extern crate regex;
 extern crate tempfile;
 
-use groestl::Digest;
-use groestl::Groestl256;
+use self::groestl::Digest;
+// use groestl::Groestl256;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -103,14 +103,34 @@ impl Note {
         Ok(())
     }
 
+    fn empty_commented() -> Result<Note> {
+        let mut note = Note::default();
+        note.id = "<uid optional>".to_string();
+        note.title = "<title>".to_string();
+        note.text = r##"
+[comment]: # (Use `#` at very beging of 1 line to claim this line title)
+[comment]: # (Use `#` to claim next word as a tag, e.g. "This is hi pri #task")"##.to_string();
+        Ok(note)
+    }
+
     pub fn gen_uid(&self) -> String {
-        let mut hasher = Groestl256::default();
+        let mut hasher = groestl::Groestl256::default();
         hasher.input(self.title.as_str());
         hasher.input(self.text.as_str());
         for tag in self.tags.iter() {
             hasher.input(tag);
         }
         hex::encode(hasher.result()).to_string()
+    }
+
+    pub fn fix_uid(&mut self)
+    {
+        let re = regex::Regex::new(TAG_REGEXP).unwrap();
+        let mut id_text = " #".to_string();
+        id_text.push_str(self.id.as_str());
+        if !re.is_match(id_text.as_str()) {
+            self.id = self.gen_uid();
+        }
     }
 }
 
@@ -217,43 +237,22 @@ impl Notebook {
                 message: "To many notes in query result, expected only 1 to iedit".to_string(),
             });
         }
-        let old_note = self.notes.get(
-            tags.iter().next().unwrap().as_str()
-        ).unwrap();
-        let editor = env::var("EDITOR").unwrap_or("/usr/bin/vi".to_string());
-        println!("Editor: {}", editor);
-        let tmp = tempfile::Builder::new()
-            .suffix(".md")
-            .rand_bytes(8)
-            .tempfile()
-            .unwrap();
-        println!("Tmp file: {}", tmp.path().display());
-        old_note.to_file(tmp.as_file()).unwrap();
-        self.write_comments(tmp.as_file()).unwrap();
-        let child_status = process::Command::new(editor)
-            .arg(tmp.path().as_os_str())
-            .spawn()
-            .unwrap()
-            .wait()
-            .unwrap();
-        if !child_status.success() {
-            return Err(Error {
-                message: "Editor process finished with error".to_string(),
-            });
-        }
-        tmp.as_file().sync_all().unwrap();
-        tmp.as_file().seek(io::SeekFrom::Start(0)).unwrap();
-        let mut new_note = Note::from_file(tmp.as_file()).unwrap();
-        if new_note.id.is_empty() || new_note.id != old_note.id {
-            new_note.id = old_note.id.clone();
-        }
-        if new_note.id.is_empty() {
-            new_note.id = self.notes.len().to_string();
-        }
+        let new_note = {
+            let old_note = self.notes.get(
+                tags.iter().next().unwrap().as_str()
+            ).unwrap();
+            let mut new_note = self.iedit_note(&old_note).unwrap();
+            if new_note.id.is_empty() || new_note.id != old_note.id {
+                new_note.id = old_note.id.clone();
+            }
+            new_note.fix_uid();
+            new_note
+        };
         self.add(new_note).unwrap();
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn has(&self, tag: &str) -> bool {
         self.notes.contains_key(tag)
     }
@@ -282,6 +281,20 @@ impl Notebook {
         Ok(())
     }
 
+    pub fn iadd(&mut self) -> Result<()> {
+        let mut note = self.iedit_note(
+            &Note::empty_commented().unwrap()
+        ).unwrap();
+        if note.text.is_empty() && note.title.is_empty() {
+            return Err(Error {
+                message: "Empty note file".to_string(),
+            });
+        }
+        note.fix_uid();
+        self.add(note).unwrap();
+        Ok(())
+    }
+
     fn write_comments(&self, file: &fs::File) -> Result<()> {
         let mut buf = io::BufWriter::new(file);
         writeln!(&mut buf, "[comment]: # (List of existing tags:)").unwrap();
@@ -295,35 +308,18 @@ impl Notebook {
         Ok(())
     }
 
-    fn make_note_template(&self, file: &fs::File) -> Result<()> {
-        let mut buf = io::BufWriter::new(file);
-        write!(&mut buf, "# \n\n\n").unwrap();
-        writeln!(
-            &mut buf,
-            "[comment]: # (Use `#` at very beging of 1 line to claim this line title)"
-        )
-        .unwrap();
-        writeln!(
-            &mut buf,
-            "[comment]: # (Use `#` to claim next word as a tag, e.g. \"This is hi pri #task\")"
-        )
-        .unwrap();
-        Ok(())
-    }
-
-    pub fn iadd(&mut self) -> Result<()> {
+    fn iedit_note(
+        &self,
+        note: &Note
+    ) -> Result<Note> {
         let editor = env::var("EDITOR").unwrap_or("/usr/bin/vi".to_string());
-        println!("Editor: {}", editor);
         let tmp = tempfile::Builder::new()
             .suffix(".md")
             .rand_bytes(8)
             .tempfile()
             .unwrap();
-        println!("Tmp file: {}", tmp.path().display());
-        self.make_note_template(tmp.as_file()).unwrap();
+        note.to_file(tmp.as_file()).unwrap();
         self.write_comments(tmp.as_file()).unwrap();
-        tmp.as_file().sync_all().unwrap();
-        tmp.as_file().seek(io::SeekFrom::Start(0)).unwrap();
         let child_status = process::Command::new(editor)
             .arg(tmp.path().as_os_str())
             .spawn()
@@ -335,21 +331,10 @@ impl Notebook {
                 message: "Editor process finished with error".to_string(),
             });
         }
-        let mut note = Note::from_file(tmp.as_file()).unwrap();
-        if note.text.is_empty() && note.title.is_empty() {
-            return Err(Error {
-                message: "Empty note file".to_string(),
-            });
-        }
-        if note.id.is_empty() {
-            note.id = self.notes.len().to_string();
-        }
-        if self.has(note.id.as_str()) {
-            note.id.push('_');
-            let uid = note.gen_uid();
-            note.id.push_str(uid.as_str());
-        }
-        self.add(note).unwrap();
-        Ok(())
+        tmp.as_file().sync_all().unwrap();
+        tmp.as_file().seek(io::SeekFrom::Start(0)).unwrap();
+        let new_note = Note::from_file(tmp.as_file()).unwrap();
+        Ok(new_note)
     }
 }
+
