@@ -33,7 +33,7 @@ fn list(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     println!("Include tags [{}]", tags.join(", "));
     println!("Exclude tags [{}]", ntags.join(", "));
     let notes = notebook.query_and(&tags, &ntags).unwrap();
-    for (_, n) in notes {
+    for n in notes {
         println!(
             "#{} {}{}",
             n.id,
@@ -62,7 +62,7 @@ fn show(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     println!("Include tags [{}]", tags.join(", "));
     println!("Exclude tags [{}]", ntags.join(", "));
     let notes = notebook.query_and(&tags, &ntags).unwrap();
-    for (_, n) in notes {
+    for n in notes {
         println!(
             "#{} {}{}\n{}",
             n.id,
@@ -96,7 +96,7 @@ fn graph(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     let notes = notebook.query_and(&tags, &ntags).unwrap();
     println!("digraph metamorph {{");
     println!("node [shape=box]");
-    for (_, n) in notes {
+    for n in notes {
         println!(
             "n_{} [label=\"{}\\n#{}\"]",
             n.id,

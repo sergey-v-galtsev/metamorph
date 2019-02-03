@@ -219,17 +219,17 @@ impl Notebook {
         &self,
         tags: &Vec<&str>,
         no_tags: &Vec<&str>,
-    ) -> Result<HashMap<String, Note>> {
-        let mut ret = HashMap::new();
+    ) -> Result<Vec<Note>> {
+        let mut ret = Vec::new();
         for uid in self.expand_tag_as_and(tags, no_tags) {
             let note = self.notes.get(uid.as_str());
             if note.is_some() {
-                ret.insert(
-                    uid.to_string(),
+                ret.push(
                     note.unwrap().clone(), // TODO: take note as a ref
                 );
             }
         }
+        ret.dedup_by(|first, second| first.id == second.id);
         Ok(ret)
     }
 
