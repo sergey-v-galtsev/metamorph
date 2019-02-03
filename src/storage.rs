@@ -6,7 +6,7 @@ extern crate hex;
 extern crate regex;
 extern crate tempfile;
 
-use self::groestl::Digest;
+use groestl::Digest;
 // use groestl::Groestl256;
 
 use std::collections::HashMap;
@@ -194,16 +194,21 @@ impl Notebook {
 
     pub fn expand_tag_as_and(
         &self,
-        tags: &Vec<&str>,
-        no_tags: &Vec<&str>,
+        incl_tags: &Vec<&str>,
+        not_incl_tags: &Vec<&str>,
     ) -> HashSet<String> {
-        let mut exp_tags = tags.iter().map(|t| self.expand_tag(t));
-        let mut tags = exp_tags.next().unwrap();
-        for include_group in exp_tags {
-            tags = tags.intersection(&include_group).cloned().collect();
+        let mut tags = HashSet::new();
+        if incl_tags.is_empty() {
+            for uid in self.notes.keys() {
+                tags.insert(uid.clone());
+            }
+        } else {
+            for group in incl_tags.iter().map(|t| self.expand_tag(t)) {
+                tags.extend(group.clone());
+            }
         }
-        for exclude_group in no_tags.iter().map(|t| self.expand_tag(t)) {
-            tags = tags.difference(&exclude_group).cloned().collect();
+        for group in not_incl_tags.iter().map(|t| self.expand_tag(t)) {
+            tags = tags.difference(&group).cloned().collect();
         }
         return tags;
     }
@@ -214,11 +219,11 @@ impl Notebook {
         no_tags: &Vec<&str>,
     ) -> Result<HashMap<String, Note>> {
         let mut ret = HashMap::new();
-        for tag in self.expand_tag_as_and(tags, no_tags) {
-            let note = self.notes.get(tag.as_str());
+        for uid in self.expand_tag_as_and(tags, no_tags) {
+            let note = self.notes.get(uid.as_str());
             if note.is_some() {
                 ret.insert(
-                    tag.to_string(),
+                    uid.to_string(),
                     note.unwrap().clone(), // TODO: take note as a ref
                 );
             }
