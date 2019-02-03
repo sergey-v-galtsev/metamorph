@@ -1,17 +1,24 @@
+mod err;
+mod note;
+mod notebook;
+
+extern crate chrono;
 extern crate clap;
 extern crate dirs;
+extern crate groestl;
+extern crate regex;
+extern crate tempfile;
+extern crate zbase32;
 
 use std::option::Option;
 use std::path::Path;
 use std::string::String;
 use std::vec::Vec;
 
-mod storage;
-
-fn spawn_notebook(args: &clap::ArgMatches) -> Option<storage::Notebook> {
+fn spawn_notebook(args: &clap::ArgMatches) -> Option<notebook::Notebook> {
     if args.is_present("on-dir") {
         return Some(
-            storage::Notebook::on_dir(
+            notebook::Notebook::on_dir(
                 Path::new(
                     args.value_of("on-dir").unwrap()
                 )
@@ -21,7 +28,7 @@ fn spawn_notebook(args: &clap::ArgMatches) -> Option<storage::Notebook> {
     None
 }
 
-fn list(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
+fn list(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
     let mut tags = Vec::new();
     if let Some(os) = args.values_of("tag") {
         tags.extend(os);
@@ -50,7 +57,7 @@ fn list(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     }
 }
 
-fn show(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
+fn show(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
     let mut tags = Vec::new();
     if let Some(os) = args.values_of("tag") {
         tags.extend(os);
@@ -80,11 +87,11 @@ fn show(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     }
 }
 
-fn note(notebook: &mut storage::Notebook, _args: &clap::ArgMatches) {
+fn note(notebook: &mut notebook::Notebook, _args: &clap::ArgMatches) {
     notebook.iadd().unwrap();
 }
 
-fn graph(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
+fn graph(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
     let mut tags = Vec::new();
     if let Some(os) = args.values_of("tag") {
         tags.extend(os);
@@ -114,7 +121,7 @@ fn graph(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     println!("}}");
 }
 
-fn edit(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
+fn edit(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
     let mut tags = Vec::new();
     if let Some(os) = args.values_of("tag") {
         tags.extend(os);
