@@ -30,20 +30,19 @@ fn list(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     if let Some(os) = args.values_of("ntag") {
         ntags.extend(os);
     }
-    println!("Include all tags from [{}]", tags.join(", "));
-    println!("Exclude all tags from [{}]", ntags.join(", "));
+    println!("Include tags [{}]", tags.join(", "));
+    println!("Exclude tags [{}]", ntags.join(", "));
     let notes = notebook.query_and(&tags, &ntags).unwrap();
     for (_, n) in notes {
         println!(
-            "#{}: {}\n    [{}]\n",
+            "#{} {}{}",
             n.id,
             n.title,
             n.tags.iter().fold(
                 String::new(),
                 |mut acc, i| {
-                    acc.push('#');
+                    acc.push_str(" #");
                     acc.push_str(i.as_str());
-                    acc.push_str(", ");
                     acc
                 }
             ),
@@ -60,20 +59,19 @@ fn show(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     if let Some(os) = args.values_of("ntag") {
         ntags.extend(os);
     }
-    println!("Include all tags from [{}]", tags.join(", "));
-    println!("Exclude all tags from [{}]", ntags.join(", "));
+    println!("Include tags [{}]", tags.join(", "));
+    println!("Exclude tags [{}]", ntags.join(", "));
     let notes = notebook.query_and(&tags, &ntags).unwrap();
     for (_, n) in notes {
         println!(
-            "#{}: {}\n    [{}]\n{}",
+            "#{} {}{}\n{}",
             n.id,
             n.title,
             n.tags.iter().fold(
                 String::new(),
                 |mut acc, i| {
-                    acc.push('#');
+                    acc.push_str(" #");
                     acc.push_str(i.as_str());
-                    acc.push_str(", ");
                     acc
                 }
             ),
@@ -95,8 +93,8 @@ fn edit(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     if let Some(os) = args.values_of("ntag") {
         ntags.extend(os);
     }
-    println!("Include all tags from [{}]", tags.join(", "));
-    println!("Exclude all tags from [{}]", ntags.join(", "));
+    println!("Include tags [{}]", tags.join(", "));
+    println!("Exclude tags [{}]", ntags.join(", "));
     notebook.iedit(&tags, &ntags).unwrap();
 }
 

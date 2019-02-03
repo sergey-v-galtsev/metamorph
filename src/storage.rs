@@ -2,12 +2,12 @@ extern crate chrono;
 extern crate clap;
 extern crate dirs;
 extern crate groestl;
-extern crate hex;
 extern crate regex;
 extern crate tempfile;
+extern crate zbase32;
 
 use groestl::Digest;
-// use groestl::Groestl256;
+// use groestl::Groestl224;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -22,7 +22,6 @@ use std::result;
 
 use std::io;
 use std::io::BufRead;
-use std::io::Seek;
 use std::io::Write;
 
 use std::string::String;
@@ -78,9 +77,10 @@ impl Note {
                     note.id = line[id_cap.start() + 2..id_cap.end()].to_string();
                     note.title = [line[..id_cap.start()].trim(), line[id_cap.end()..].trim()]
                         .join(" ")
+                        .trim()
                         .to_string();
                 } else {
-                    note.title = line.to_string();
+                    note.title = line.trim().to_string();
                 }
             } else if line.starts_with("[comment]:") {
                 continue;
@@ -114,13 +114,15 @@ impl Note {
     }
 
     pub fn gen_uid(&self) -> String {
-        let mut hasher = groestl::Groestl256::default();
+        let mut hasher = groestl::Groestl224::default();
         hasher.input(self.title.as_str());
         hasher.input(self.text.as_str());
         for tag in self.tags.iter() {
             hasher.input(tag);
         }
-        hex::encode(hasher.result()).to_string()
+        zbase32::encode_full_bytes(
+            &hasher.result()
+        ).to_string()
     }
 
     pub fn fix_uid(&mut self)
