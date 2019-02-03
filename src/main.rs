@@ -84,6 +84,36 @@ fn note(notebook: &mut storage::Notebook, _args: &clap::ArgMatches) {
     notebook.iadd().unwrap();
 }
 
+fn graph(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
+    let mut tags = Vec::new();
+    if let Some(os) = args.values_of("tag") {
+        tags.extend(os);
+    }
+    let mut ntags = Vec::new();
+    if let Some(os) = args.values_of("ntag") {
+        ntags.extend(os);
+    }
+    let notes = notebook.query_and(&tags, &ntags).unwrap();
+    println!("digraph metamorph {{");
+    println!("node [shape=box]");
+    for (_, n) in notes {
+        println!(
+            "n_{} [label=\"{}\\n#{}\"]",
+            n.id,
+            n.title,
+            n.id,
+        );
+        for t in n.tags.iter() {
+            println!(
+                "n_{} -> n_{}",
+                t,
+                n.id,
+            );
+        }
+    }
+    println!("}}");
+}
+
 fn edit(notebook: &mut storage::Notebook, args: &clap::ArgMatches) {
     let mut tags = Vec::new();
     if let Some(os) = args.values_of("tag") {
@@ -141,6 +171,18 @@ fn main() {
             clap::SubCommand::with_name("edit")
                 .about("edit")
         )
+        .subcommand(
+            clap::SubCommand::with_name("graph")
+                .about("graph")
+                .arg(
+                    clap::Arg::with_name("format")
+                        .long("format")
+                        .takes_value(true)
+                        .default_value("dot")
+                        .possible_value("dot")
+                        .help("Format of ouput graph")
+                )
+        )
         .get_matches();
 
     let mut notebook = spawn_notebook(&args).unwrap();
@@ -149,6 +191,7 @@ fn main() {
         ("new", Some(sub_args)) => note(&mut notebook, sub_args),
         ("show", Some(sub_args)) => show(&mut notebook, sub_args),
         ("edit", Some(sub_args)) => edit(&mut notebook, sub_args),
+        ("graph", Some(sub_args)) => graph(&mut notebook, sub_args),
         (_, None) => {}
         (_, Some(_)) => {}
     };
