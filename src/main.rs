@@ -1,6 +1,7 @@
 mod err;
 mod note;
 mod notebook;
+mod cli;
 
 extern crate chrono;
 extern crate clap;
@@ -12,7 +13,6 @@ extern crate zbase32;
 
 use std::option::Option;
 use std::path::Path;
-use std::string::String;
 use std::vec::Vec;
 
 fn spawn_notebook(args: &clap::ArgMatches) -> Option<notebook::Notebook> {
@@ -28,7 +28,7 @@ fn spawn_notebook(args: &clap::ArgMatches) -> Option<notebook::Notebook> {
     None
 }
 
-fn list(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
+fn list(notebook: &mut cli::INotebook, args: &clap::ArgMatches) {
     let mut tags = Vec::new();
     if let Some(os) = args.values_of("tag") {
         tags.extend(os);
@@ -39,25 +39,10 @@ fn list(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
     }
     println!("Include tags [{}]", tags.join(", "));
     println!("Exclude tags [{}]", ntags.join(", "));
-    let notes = notebook.query_and(&tags, &ntags).unwrap();
-    for n in notes {
-        println!(
-            "#{} {}{}",
-            n.id,
-            n.title,
-            n.tags.iter().fold(
-                String::new(),
-                |mut acc, i| {
-                    acc.push_str(" #");
-                    acc.push_str(i.as_str());
-                    acc
-                }
-            ),
-        );
-    }
+    let notes = notebook.list(&tags, &ntags).unwrap();
 }
 
-fn show(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
+fn show(notebook: &mut cli::INotebook, args: &clap::ArgMatches) {
     let mut tags = Vec::new();
     if let Some(os) = args.values_of("tag") {
         tags.extend(os);
@@ -68,30 +53,14 @@ fn show(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
     }
     println!("Include tags [{}]", tags.join(", "));
     println!("Exclude tags [{}]", ntags.join(", "));
-    let notes = notebook.query_and(&tags, &ntags).unwrap();
-    for n in notes {
-        println!(
-            "#{} {}{}\n{}",
-            n.id,
-            n.title,
-            n.tags.iter().fold(
-                String::new(),
-                |mut acc, i| {
-                    acc.push_str(" #");
-                    acc.push_str(i.as_str());
-                    acc
-                }
-            ),
-            n.text,
-        );
-    }
+    let notes = notebook.show(&tags, &ntags).unwrap();
 }
 
-fn note(notebook: &mut notebook::Notebook, _args: &clap::ArgMatches) {
+fn note(notebook: &mut cli::INotebook, _args: &clap::ArgMatches) {
     notebook.iadd().unwrap();
 }
 
-fn graph(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
+fn graph(notebook: &mut cli::INotebook, args: &clap::ArgMatches) {
     let mut tags = Vec::new();
     if let Some(os) = args.values_of("tag") {
         tags.extend(os);
@@ -100,28 +69,10 @@ fn graph(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
     if let Some(os) = args.values_of("ntag") {
         ntags.extend(os);
     }
-    let notes = notebook.query_and(&tags, &ntags).unwrap();
-    println!("digraph metamorph {{");
-    println!("node [shape=box]");
-    for n in notes {
-        println!(
-            "n_{} [label=\"{}\\n#{}\"]",
-            n.id,
-            n.title,
-            n.id,
-        );
-        for t in n.tags.iter() {
-            println!(
-                "n_{} -> n_{}",
-                t,
-                n.id,
-            );
-        }
-    }
-    println!("}}");
+    let notes = notebook.graph_dot(&tags, &ntags).unwrap();
 }
 
-fn edit(notebook: &mut notebook::Notebook, args: &clap::ArgMatches) {
+fn edit(notebook: &mut cli::INotebook, args: &clap::ArgMatches) {
     let mut tags = Vec::new();
     if let Some(os) = args.values_of("tag") {
         tags.extend(os);
@@ -192,7 +143,9 @@ fn main() {
         )
         .get_matches();
 
-    let mut notebook = spawn_notebook(&args).unwrap();
+    let mut notebook = cli::INotebook::create(
+        spawn_notebook(&args).unwrap()
+    );
     return match args.subcommand() {
         ("list", Some(sub_args)) => list(&mut notebook, sub_args),
         ("new", Some(sub_args)) => note(&mut notebook, sub_args),

@@ -2,11 +2,11 @@ use crate::err::Result;
 
 use std::collections::HashSet;
 use std::fs;
-use std::string::String;
-
+use std::io::BufRead;
 use std::io::Write;
 use std::io;
-use std::io::BufRead;
+use std::path;
+use std::string::String;
 
 use groestl::Digest;
 
@@ -54,10 +54,17 @@ impl Note {
         return Ok(note);
     }
 
+    pub fn from_file_on_disk(
+        path: &path::Path
+    ) -> Result<Note> {
+        let file = fs::OpenOptions::new().read(true).open(path).unwrap();
+        return Note::from_file(&file);
+    }
+
     // TODO: use trait Write for argument
     pub fn to_file(&self, file: &fs::File) -> Result<()> {
         let mut buf = io::BufWriter::new(file);
-        writeln!(&mut buf, "# #{} {}", self.id, self.title).unwrap();
+        writeln!(&mut buf, "# {} #{}", self.title, self.id).unwrap();
         writeln!(&mut buf, "{}", self.text).unwrap();
         Ok(())
     }
